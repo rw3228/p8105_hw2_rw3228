@@ -1,0 +1,6 @@
+---
+title: "P8105 HW2"
+author: "Ruoqi Wang"
+date: "2026-10-06"
+output: github_document
+---
