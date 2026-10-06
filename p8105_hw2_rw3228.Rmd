@@ -161,7 +161,7 @@ trash_wheel_df =
 
 The combined Trash Wheel dataset contains `r nrow(trash_wheel_df)` observations and `r ncol(trash_wheel_df)` variables. Each observation represents a dumpster collection from one of the three Trash Wheels: Mr. Trash Wheel, Professor Trash Wheel, or Gwynnda. Key variables include the Trash Wheel name, dumpster number, month, year, weight of trash in tons, volume of trash, and counts of various types of trash such as plastic bottles and cigarette butts. 
 
-## Total weight of trash collected by Professor Trash Wheel
+## Total weight of trash collected by Professor Trash Wheel.
 ```{r}
 trash_wheel_df |>
   filter(trash_wheel == "Professor Trash Wheel") |>
@@ -170,7 +170,7 @@ trash_wheel_df |>
   )
 ```
 
-## Total number of cigarette butts collected by Gwynnda in June of 2022
+## Total number of cigarette butts collected by Gwynnda in June of 2022.
 ```{r}
 trash_wheel_df |>
   filter(
@@ -182,3 +182,107 @@ trash_wheel_df |>
     total_cigarette_butts = sum(cigarette_butts, na.rm = TRUE)
   )
 ```
+
+
+## Problem 3
+```{r}
+baseline_df = 
+  read_csv(
+    "data/MCI_baseline.csv",
+    skip = 1,  #the file has a descriptive first row before the actual variable names
+    na = ".",  #the file uses . to represent missing MCI-onset ages
+    show_col_types = FALSE
+  ) |>
+  janitor::clean_names() |>
+  mutate(
+    sex = recode(  #removes anyone whose MCI onset age was at or before their baseline age
+      sex,
+      `0` = "Female",
+      `1` = "Male"
+    ),
+    apoe4 = recode(  ##changes from numeric codes to meaningful carrier-status categories
+      apoe4,
+      `0` = "Non-carrier",
+      `1` = "Carrier"
+    )
+  ) |>
+  filter(  #removes anyone whose MCI onset age was at or before their baseline age
+    is.na(age_at_onset) | age_at_onset > current_age
+  )
+```
+
+## How many participants were recruited, and of these how many develop MCI?
+```{r}
+baseline_df |>
+  summarize(
+    recruited = n(),
+    developed_mci = sum(!is.na(age_at_onset))
+  )
+```
+
+## What is the baseline age?
+```{r}
+baseline_df |>
+  summarize(
+    mean_baseline_age = mean(current_age, na.rm = TRUE)
+  )
+```
+
+## What proportion of women in the study are APOE4 carriers?
+```{r}
+baseline_df |>
+  filter(sex == "Female") |>
+  summarize(
+    proportion_apoe4 = mean(apoe4 == "Carrier")
+  )
+```
+After cleaning, the baseline dataset contains `r nrow(baseline_df)` participants. Of these participants, `r sum(!is.na(baseline_df$age_at_onset))` developed MCI during follow-up. The average baseline age was `r round(mean(baseline_df$current_age, na.rm = TRUE), 2)` years. Among women, `r scales::percent(mean(baseline_df$apoe4[baseline_df$sex == "Female"] == "Carrier"), accuracy = 1)` were APOE4 carriers.
+
+```{r}
+amyloid_df = 
+  read_csv(
+    "data/mci_amyloid.csv",
+    skip = 1,  #the file has a descriptive first row before the actual variable names
+    na = ".",
+    show_col_types = FALSE
+  ) |>
+  janitor::clean_names() |>
+  pivot_longer(
+    baseline:time_8,
+    names_to = "time",
+    values_to = "amyloid_ratio"
+  )  #each row represents one amyloid measurement for one participant at one time point
+```
+The tidy amyloid dataset contains `r nrow(amyloid_df)` observations and `r ncol(amyloid_df)` variables, including participant ID, measurement time, and amyloid ratio.
+
+```{r}
+baseline_only = 
+  baseline_df |>
+  anti_join(
+    amyloid_df,
+    by = c("id" = "study_id")  #the baseline dataset uses the ID variable
+  )
+
+amyloid_only = 
+  amyloid_df |>
+  anti_join(
+    baseline_df,
+    by = c("study_id" = "id")  #the amyloid dataset uses study_id
+  ) |>
+  distinct(study_id)
+```
+Comparison of participant IDs showed that `r nrow(baseline_only)` participants appeared only in the cleaned baseline dataset, while `r nrow(amyloid_only)` participants appeared only in the amyloid dataset.
+
+```{r}
+combined_df = 
+  baseline_df |>
+  inner_join(  #it retains only IDs that occur in both datasets
+    amyloid_df,
+    by = c("id" = "study_id")
+  )
+write_csv(
+  combined_df,
+  "data/mci_amyloid_clean.csv"
+)
+```
+The resulting combined dataset contains `r n_distinct(combined_df$id)` unique participants, `r nrow(combined_df)` observations, and `r ncol(combined_df)` variables. Each participant contributes longitudinal amyloid measurements along with their baseline demographic and MCI information.
